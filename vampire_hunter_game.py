@@ -179,13 +179,17 @@ def dungeonGen(roomNumber):
             if randMove == 4 and xPos < roomWidth - 3:
                 xPos += 1
         room[roomHeight // 2][roomWidth // 2] = mainCharacter
-        if len(roomData) >= 1:
-            for i in range(3):
-                room[(roomHeight // 2) - 1 + i][0] = 'd'
-                enemyGen(roomHeight, roomWidth)
-            for i in range(roomWidth // 2):
-                room[roomHeight // 2][i] = ' '
+        
+        # Always create a door in the left wall for all rooms, including room 1
+        for i in range(3):
+            room[(roomHeight // 2) - 1 + i][0] = 'd'
+        for i in range(roomWidth // 2):
+            room[roomHeight // 2][i] = ' '
+        
+        # Generate enemies for all rooms
+        enemyGen(roomHeight, roomWidth)
         roomData[roomNumber] = room
+        
         if roomNumber % 5 == 0:
             bossRoom()
     else:
@@ -193,6 +197,7 @@ def dungeonGen(roomNumber):
         roomHeight = len(room)
         roomWidth = len(room[0])
         currentCol, currentRow = roomHeight // 2, roomWidth - 2
+
 
 class Boss(Character):
     def __init__(self, x, y, health, damage, ability):
@@ -293,16 +298,26 @@ def bossRoom():
 
 def doorInteraction():
     global roomData, roomNumber, room, currentCol, currentRow, roomWidth, roomHeight
-    if currentCol in range(roomHeight // 2 - 1, roomHeight // 2 + 2) and currentRow in range(roomWidth // 2 - 1, roomWidth // 2 + 2):
-        roomNumber -= 1
-        if roomNumber >= 1:
-            room = roomData[roomNumber]
-            roomHeight = len(room)
-            roomWidth = len(room[0])
-            currentCol, currentRow = roomHeight // 2, roomWidth - 2
-    if currentCol in range(roomHeight // 2 - 1, roomHeight // 2 + 2) and currentRow in range(roomWidth // 2 - 1, roomWidth // 2 + 2):
-        roomNumber += 1
-        dungeonGen(roomNumber)
+    # Check if player is near the door (left wall)
+    if currentRow == 0 and currentCol in range(roomHeight // 2 - 1, roomHeight // 2 + 2):
+        # If we're in room 1, we can only go forward
+        if roomNumber == 1:
+            roomNumber += 1
+            dungeonGen(roomNumber)
+        # If we're in a higher room, we can go back or forward
+        elif roomNumber > 1:
+            # Check if player pressed E to go back or F to go forward
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_e]:  # Go back
+                roomNumber -= 1
+                if roomNumber >= 1:
+                    room = roomData[roomNumber]
+                    roomHeight = len(room)
+                    roomWidth = len(room[0])
+                    currentCol, currentRow = roomHeight // 2, roomWidth - 2
+            elif keys[pygame.K_f]:  # Go forward
+                roomNumber += 1
+                dungeonGen(roomNumber)
 
 def handleMovement(event):
     global currentRow, currentCol, movementStack
@@ -453,6 +468,7 @@ def roomTest(room1, room2):
 while True:
     player.x, player.y = currentRow, currentCol
     currentLocation(mainCharacter)
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -472,6 +488,8 @@ while True:
                 screen.blit(wallImage, (col * tileSize, row * tileSize))
             elif room[row][col] == 'x':
                 screen.blit(basicEnemyImage, (col * tileSize, row * tileSize))
+            elif room[row][col] == 'd':
+                screen.blit(doorImage, (col * tileSize, row * tileSize))
     screen.blit(mainCharacter, (currentRow * tileSize, currentCol * tileSize))
 
     if not gameOver:
@@ -487,16 +505,12 @@ while True:
                 if canMove(newY, newX):
                     room[enemy.y][enemy.x] = ' '
                     enemy.x, enemy.y = newX, newY
-            room[enemy.y][enemy.x] = 'x'
-            screen.blit(basicEnemyImage, (enemy.x * 30, enemy.y * 30))
+                    room[enemy.y][enemy.x] = 'x'
+                screen.blit(basicEnemyImage, (enemy.x * 30, enemy.y * 30))
 
-    if roomNumber > 1:
-        screen.blit(doorImage, (0, ((roomHeight-2) // 2 * 30)))
-        print("Is room different:", roomTest(roomData[roomNumber - 1], roomData[roomNumber]))
-
-    if player.health <= 0:
-        gameOver = True
-        displayGameOver()
+        if player.health <= 0:
+            gameOver = True
+            displayGameOver()
 
     room_number_text = font.render(f"Room {roomNumber}", True, (255, 255, 255))
     screen.blit(room_number_text, room_number_text.get_rect(center=(screenWidth // 2, screenHeight - 30)))
@@ -525,22 +539,22 @@ while True:
         bossHealthBar.draw(screen)
         if boss.health > 0:
             screen.blit(bossImage, (boss.x * tileSize, boss.y * tileSize))
-            if boss.attackCooldown == 0:
-                boss.meleeAttack()
-                boss.attackCooldown = 60
-            elif boss.attackCooldown > 0:
-                boss.attackCooldown -= 1
-            boss.move()
-        else:
-            if boss in enemyPositions[roomNumber]:
-                enemyPositions[roomNumber].remove(boss)
+        if boss.attackCooldown == 0:
+            boss.meleeAttack()
+            boss.attackCooldown = 60
+        elif boss.attackCooldown > 0:
+            boss.attackCooldown -= 1
+        boss.move()
+    else:
+        if boss in enemyPositions[roomNumber]:
+            enemyPositions[roomNumber].remove(boss)
 
     if roomNumber > 1:
         allEnemiesDead = all(enemy.health <= 0 for enemy in enemyPositions.get(roomNumber, []))
         if allEnemiesDead:
             roomClear()
-    else:
-        roomClear()
+        else:
+            roomClear()
 
     if commentaryFrameCount > 0:
         commentaryFrameCount -= 1
